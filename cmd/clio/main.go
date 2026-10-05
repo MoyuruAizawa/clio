@@ -43,7 +43,7 @@ func run(ctx context.Context, args []string, stdin *os.File, out, errout io.Writ
 		return 0
 	}
 	if len(args) == 0 || args[0] != "exec" {
-		fmt.Fprintln(errout, "usage: clio auth login | clio exec [--mode status|on-error|full] [--timeout duration] [--context purpose] -- command [args...]")
+		fmt.Fprintln(errout, "usage: clio auth login | clio exec [--timeout duration] [--context purpose] -- command [args...]")
 		return 2
 	}
 	boundary := -1
@@ -59,14 +59,13 @@ func run(ctx context.Context, args []string, stdin *os.File, out, errout io.Writ
 	}
 	flags := flag.NewFlagSet("exec", flag.ContinueOnError)
 	flags.SetOutput(errout)
-	mode := flags.String("mode", "on-error", "output mode")
 	timeout := flags.Duration("timeout", 0, "child timeout")
 	agentContext := flags.String("context", "", "agent's purpose for running the command")
 	if flags.Parse(args[1:boundary]) != nil {
 		return 2
 	}
-	if flags.NArg() != 0 || !execution.ValidMode(*mode) || *timeout < 0 {
-		fmt.Fprintln(errout, "clio: invalid mode, timeout, or arguments")
+	if flags.NArg() != 0 || *timeout < 0 {
+		fmt.Fprintln(errout, "clio: invalid timeout or arguments")
 		return 2
 	}
 	if *timeout > 0 {
@@ -74,7 +73,7 @@ func run(ctx context.Context, args []string, stdin *os.File, out, errout io.Writ
 		ctx, cancel = context.WithTimeout(ctx, *timeout)
 		defer cancel()
 	}
-	code, e := execution.Execute(ctx, args[boundary+1:], *mode, *agentContext, stdin, out, errout, f)
+	code, e := execution.Execute(ctx, args[boundary+1:], *agentContext, stdin, out, errout, f)
 	if e != nil {
 		fmt.Fprintln(errout, "clio:", e)
 		return 1

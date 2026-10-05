@@ -30,19 +30,18 @@ failed commands.
 ```sh
 clio auth login
 clio exec -- go test ./...
-clio exec --mode status --timeout 2m -- go build ./...
-clio exec --mode full -- git diff
+clio exec --timeout 2m -- go build ./...
+git diff
 clio exec --context "Verify that the pendant changes compile into the debug APK." -- ./gradlew assembleDevelopDebug
 ```
 
-`on-error` is the default: successful commands emit metadata only; failures emit
-selected raw log content on stdout. `status` emits metadata only. `full` returns
-captured stdout and stderr to their original streams. All modes capture output in
-memory and return it after the command finishes; even `full` does not stream
-progress. Stdout and stderr are captured separately, so their combined chronological
-order is not preserved. Successfully filtered logs are returned on stdout, with
-`[stdout]` and `[stderr]` sections. Metadata is always on stderr and includes exit
-code, child duration, signal when applicable, timeout and cancellation.
+Clio always captures output in memory and returns it after the command finishes;
+successful commands emit metadata only, while failed commands return selected raw
+log content on stdout. Output is not streamed while the child runs. Stdout and
+stderr are captured separately, so their combined chronological order is not
+preserved. Successfully filtered logs are returned on stdout, with `[stdout]` and
+`[stderr]` sections. Metadata is always on stderr and includes exit code, child
+duration, signal when applicable, timeout and cancellation.
 Arguments after `--` are executed directly, with stdin, working directory, and
 environment inherited except `TYPESAFE_API_KEY`.
 
@@ -60,8 +59,7 @@ action toward that goal. Failures blocking the command remain relevant even in
 other modules. Omitting context preserves the existing failure-focused question.
 The value is not added to child arguments or environment, or echoed in metadata.
 It is sent to TypeSafe only when filtering is needed; do not include credentials
-or the entire conversation. `status`, `full`, and successful `on-error` runs do not
-send it to TypeSafe.
+or the entire conversation. Successful commands do not send it to TypeSafe.
 
 Child exit codes are preserved, including `128 + signal`. Argument errors exit 2;
 internal errors exit 1. `--timeout` limits only child execution; omitted means no
@@ -71,8 +69,8 @@ HTTP 429/529 responses are retried at most twice within that deadline, using bac
 and `Retry-After`.
 Filter failures, invalid answers, missing credentials, and empty selections from
 nonempty logs emit `filtering failed` with a reason and return each stream's last
-4 KiB, retaining the child exit code. No credentials are needed for `status`,
-`full`, or successful `on-error` runs.
+4 KiB, retaining the child exit code. No credentials are needed for successful
+commands.
 
 ## Credentials and model
 
@@ -89,12 +87,11 @@ An existing `TYPESAFE_API_KEY` is not used as Clio's credential source.
 
 ## Filtering and data sent to TypeSafe
 
-On a failed `on-error` run, Clio sends normalized stdout and stderr in chunks to
+On a failed command, Clio sends normalized stdout and stderr in chunks to
 the TypeSafe API. The entire captured log is eligible for transmission, not just
 the chunks later returned to the agent. Requests also contain the command, exit
 code, optional context, and neighboring chunk excerpts. Clio does not redact
-secrets from logs or command arguments. `status`, `full`, and successful `on-error`
-runs do not call TypeSafe.
+secrets from logs or command arguments. Successful commands do not call TypeSafe.
 
 For judgment, Clio removes ANSI escapes and converts carriage returns to newlines.
 Chunks contain at most 4 KiB of normalized text, preferring line boundaries;
@@ -108,17 +105,16 @@ and context excerpts are admitted in relevance order up to 16 KiB of raw content
 A group that exceeds the remaining limit is skipped whole. If nothing fits, filtering
 fails and returns the bounded tails described above. Output preserves original order
 within each stream, stdout first; read later stderr sections as well. Labels and
-omission markers are additional bytes. Use `full` only if information needed for
-diagnosis is missing.
+omission markers are additional bytes.
 
-Clio does not save logs, so obtaining a previous run's full output requires rerunning
-the command. Consider side effects before repeating installation, deployment,
-or other mutations.
+Clio does not save logs, so obtaining complete output requires running the command
+directly or rerunning it. Consider side effects before repeating installation,
+deployment, or other mutations.
 
 ## Agent skill
 
-[skills/clio/SKILL.md](skills/clio/SKILL.md) explains mode selection, task context,
-expected omission markers, and when to rerun with `full`. Copy the `skills/clio`
+[skills/clio/SKILL.md](skills/clio/SKILL.md) explains when to use Clio, task context,
+expected omission markers, and when to run a command directly. Copy the `skills/clio`
 folder into your agent's skills directory, or reference it from project instructions.
 The skill guides the agent; the `clio` binary must also be installed and on PATH.
 
@@ -127,7 +123,7 @@ The skill guides the agent; the `clio` binary must also be installed and on PATH
 Capture uses memory proportional to output. This version has no disk spill, saved
 logs, command-specific heuristics, or Windows process-tree control. A descendant
 holding an output pipe open is bounded by a 200 ms drain deadline after child exit.
-Output arriving after that deadline may be lost, including in `full`.
+Output arriving after that deadline may be lost.
 macOS/Linux cancellation kills the child process group.
 
 From the project root, with Clio installed:

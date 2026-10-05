@@ -10,27 +10,18 @@ import (
 	"time"
 )
 
-func ValidMode(mode string) bool { return mode == "status" || mode == "full" || mode == "on-error" }
 func Tail(b []byte) []byte {
 	if len(b) > 4096 {
 		return b[len(b)-4096:]
 	}
 	return b
 }
-func Execute(ctx context.Context, args []string, mode, agentContext string, stdin io.Reader, out, errout io.Writer, f filter.Filter) (int, error) {
+func Execute(ctx context.Context, args []string, agentContext string, stdin io.Reader, out, errout io.Writer, f filter.Filter) (int, error) {
 	r, err := executor.Run(ctx, args, stdin)
 	if err != nil {
 		return 1, err
 	}
-	if mode == "full" {
-		if _, err = out.Write(r.Stdout); err != nil {
-			return 1, err
-		}
-		if _, err = errout.Write(r.Stderr); err != nil {
-			return 1, err
-		}
-	}
-	if mode == "on-error" && r.ExitCode != 0 {
+	if r.ExitCode != 0 {
 		fc, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		result, fe := f.Apply(fc, filter.FilterInput{Command: args, AgentContext: agentContext, ExitCode: r.ExitCode, Stdout: r.Stdout, Stderr: r.Stderr})
 		cancel()
